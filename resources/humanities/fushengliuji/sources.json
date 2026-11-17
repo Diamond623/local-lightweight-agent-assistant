@@ -1,0 +1,36 @@
+{
+  "work": "浮生六記",
+  "author": "沈復",
+  "scope": "仅存世原作前四卷；不含争议伪续卷五、六",
+  "retrieved": "2026-11-17",
+  "chapters": [
+    {
+      "title": "卷一 閨房記樂",
+      "file": "01.txt",
+      "source": "https://zh.wikisource.org/wiki/%E6%B5%AE%E7%94%9F%E5%85%AD%E8%A8%98/%E5%8D%B7%E4%B8%80_%E9%96%A8%E6%88%BF%E8%A8%98%E6%A8%82",
+      "revision": 2111430,
+      "characters": 8930
+    },
+    {
+      "title": "卷二 閑情記趣",
+      "file": "02.txt",
+      "source": "https://zh.wikisource.org/wiki/%E6%B5%AE%E7%94%9F%E5%85%AD%E8%A8%98/%E5%8D%B7%E4%BA%8C_%E9%96%91%E6%83%85%E8%A8%98%E8%B6%A3",
+      "revision": 10697870,
+      "characters": 4838
+    },
+    {
+      "title": "卷三 坎坷記愁",
+      "file": "03.txt",
+      "source": "https://zh.wikisource.org/wiki/%E6%B5%AE%E7%94%9F%E5%85%AD%E8%A8%98/%E5%8D%B7%E4%B8%89_%E5%9D%8E%E5%9D%B7%E8%A8%98%E6%84%81",
+      "revision": 1560954,
+      "characters": 8456
+    },
+    {
+      "title": "卷四 浪遊記快",
+      "file": "04.txt",
+      "source": "https://zh.wikisource.org/wiki/%E6%B5%AE%E7%94%9F%E5%85%AD%E8%A8%98/%E5%8D%B7%E5%9B%9B_%E6%B5%AA%E9%81%8A%E8%A8%98%E5%BF%AB",
+      "revision": 2155592,
+      "characters": 14405
+    }
+  ]
+}
