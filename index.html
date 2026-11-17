@@ -658,7 +658,7 @@ function renderResources(data){
 }
 async function refreshResources(){if(resourceLoading)return;resourceLoading=true;$('refreshresources').disabled=true;try{renderResources(await api('resources'))}catch(e){$('resourcefeedback').textContent='刷新失败：'+e.message+'。已显示的数据可能过时。'}finally{resourceLoading=false;$('refreshresources').disabled=false}}
 $('resources').onclick=()=>{$('resourcedialog').showModal();refreshResources()};$('closeresources').onclick=()=>$('resourcedialog').close();$('refreshresources').onclick=refreshResources;
-setInterval(()=>{if($('resourcedialog').open&&document.visibilityState!=='hidden')refreshResources()},1000);
+setInterval(()=>{if($('resourcedialog').open&&document.visibilityState!=='hidden')refreshResources()},2000);
 (async()=>{try{const info=await api('info');const account=await api('auth/state');if(!account.user){location.reload();return}$('manageaccounts').hidden=!(account.user.owner||account.user.remote_owner);$('accountname').textContent=account.user.display_name+' · '+account.user.username+(account.user.owner?'（本机管理员）':'');$('build').textContent=info.build;const preferences=await api('preferences');
 const previousMode=preferences.mode;preferences.mode=({text:'qwen35',vision:'gemma'})[previousMode]||(['qwen35','gemma','qwen27b'].includes(previousMode)?previousMode:'gemma');
 $('mode').value=preferences.mode;$('online').checked=preferences.online;$('autoload').checked=preferences.auto_start;updateToolSummary();
