@@ -29,6 +29,7 @@ import local_clock
 import search_plan
 import conversation
 import generation
+import humanities
 import agent
 import desktop_control
 import data_paths
@@ -592,6 +593,7 @@ def chat(session_id, question, image, mode, online, document=None, on_event=None
                   '用户可用“记住：”保存记忆，未收到成功回执不可声称已保存。')
     if mode == 'qwen27b':
         system += conversation.RESPONSE_STYLE
+    system += humanities.RESPONSE_GUIDANCE + humanities.excerpt(question)
     if computer_sample:
         system += ('\n本轮由只读系统接口实时读取的本机资料（只使用这些已读取的指标；暂不可读不得猜测；'
                    '空闲内存页不等于可用内存，进程 RSS 不等于独立物理内存）：\n' +
