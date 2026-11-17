@@ -1,0 +1,37 @@
+const assert=require('node:assert/strict'),vm=require('node:vm');
+const {context,node}=require('./test_chat_ui.cjs');
+const run=code=>vm.runInContext(code,context);
+assert.equal(run('resourceSize(null)'),'暂不可读');
+assert.equal(run('resourceSize(0)'),'0.0 MiB');
+assert.equal(run('resourceSize(1073741824)'),'1.00 GiB');
+context.snapshot={sampled_at:1,rss_sum_bytes:1073741824,system:{total_bytes:24*1073741824,pressure:'warning',compressed_bytes:0,swap:{used_bytes:0}},processes:[{pid:12,label:'模型',kind:'external_model',rss_bytes:1024}],method:'RSS共享页说明',scope:'仅本次Aurora'};
+run('renderResources(snapshot)');
+assert.equal(node('resourcepressure').textContent,'偏高');
+assert.equal(node('resourceswap').textContent,'0.0 MiB');
+assert.match(node('resourceprocesses').textContent,/独立启动，不计入合计/);
+run('renderResources({system:{},processes:[],message:"读取受限"})');
+assert.equal(node('resourcerss').textContent,'暂不可读');
+assert.equal(node('resourcepressure').textContent,'暂不可读');
+assert.match(node('resourcefeedback').textContent,/读取受限/);
+let resolve,calls=0;
+context.fetch=()=>{calls++;return new Promise(done=>{resolve=()=>done({ok:true,json:async()=>context.snapshot})})};
+(async()=>{
+ const first=run('refreshResources()');const second=run('refreshResources()');
+ assert.equal(calls,1,'Do not overlap resource requests');
+ resolve();await first;await second;assert.equal(node('refreshresources').disabled,false);
+ context.fetch=async()=>{throw Error('断开连接')};await run('refreshResources()');
+ assert.match(node('resourcefeedback').textContent,/可能过时/);
+ console.log('Resource UI passed: missing vs zero, external models, non-overlapping requests, error recovery.');
+})().catch(e=>{console.error(e);process.exitCode=1});
+// Numeric memory samples create a line; missing readings and pauses break it.
+context.points=[{at:100,bytes:0},{at:101,bytes:1024},{at:150,bytes:2048},{at:151,bytes:null},{at:152,bytes:3072}];
+const segments=JSON.parse(run('JSON.stringify(resourceSegments(points,152,4096))'));
+assert.equal(segments.length,3);
+assert.equal(segments[0].points.length,2);
+assert.ok(segments[0].points[0][1]>segments[0].points[1][1]);
+run('resourceHistory.length=0;renderResourceHistory({sampled_at:500,rss_sum_bytes:0,system:{}});renderResourceHistory({sampled_at:500,rss_sum_bytes:0,system:{}})');
+assert.equal(run('resourceHistory.length'),1);
+assert.equal(node('resourcehistoryhint').hidden,true,'Zero bytes is a real sample');
+run('renderResourceHistory({sampled_at:900,system:{}})');
+assert.equal(run('resourceHistory.length'),1);
+assert.equal(node('resourcehistoryhint').hidden,false);

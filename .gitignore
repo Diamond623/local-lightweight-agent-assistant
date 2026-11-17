@@ -1,0 +1,50 @@
+# Local accounts, chat history, memory, scheduled tasks and attachments
+data/
+tasks-data/
+runtime-logs/
+code-backups/
+Aurora Memory/
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+*.jsonl
+*.log
+*.lock
+
+# Secrets and machine-specific configuration
+.env
+.env.*
+!.env.example
+account-service.json
+auth.json
+config/auth.json
+briefing-settings.json
+welcome-settings.json
+local.aurora.daily-briefing.plist
+
+# Model files, downloaded weights and native build outputs
+models/
+*.gguf
+*.safetensors
+*.pt
+*.pth
+*.bin
+*.onnx
+Aurora.app/Contents/MacOS/
+Aurora.app/Contents/_CodeSignature/
+AuroraDesktop
+PDFRead
+dist/
+build/
+
+# Caches and editor state
+__pycache__/
+*.py[cod]
+.DS_Store
+.venv/
+.vscode/
+.idea/
+.pytest_cache/
+.coverage
