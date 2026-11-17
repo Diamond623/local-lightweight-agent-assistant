@@ -71,44 +71,46 @@ def database():
     directory = auth.data_directory(DATA)
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     conn = sqlite3.connect(directory / 'memory.sqlite3', timeout=15)
-    conn.row_factory = sqlite3.Row
-    # Preserve a consistent backup before first upgrading an existing database.
-    legacy = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='messages'").fetchone()
-    upgraded = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='memory_meta'").fetchone()
-    if legacy and not upgraded:
-        backup_path = directory / 'memory-before-retrieval-v1.sqlite3'
-        if not backup_path.exists():
-            backup = sqlite3.connect(backup_path)
-            try:
-                conn.backup(backup)
-            finally:
-                backup.close()
-    if legacy and upgraded and not conn.execute("SELECT 1 FROM memory_meta WHERE key='auto_memory_v1'").fetchone():
-        backup_path=directory/'memory-before-auto-v1.sqlite3'
-        if not backup_path.exists():
-            backup=sqlite3.connect(backup_path)
-            try:conn.backup(backup)
-            finally:backup.close()
-    conn.executescript('''
-      CREATE TABLE IF NOT EXISTS sessions(id INTEGER PRIMARY KEY, title TEXT, created TEXT);
-      CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY, session_id INTEGER,
-        role TEXT, content TEXT, image TEXT, sources TEXT, created TEXT);
-      CREATE TABLE IF NOT EXISTS memories(id INTEGER PRIMARY KEY, content TEXT, created TEXT);
-      CREATE TABLE IF NOT EXISTS preferences(key TEXT PRIMARY KEY,value TEXT);
-    ''')
-    if 'archived' not in {row['name'] for row in conn.execute('PRAGMA table_info(sessions)')}:
-        conn.execute('ALTER TABLE sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0')
-    if 'attachment' not in {row['name'] for row in conn.execute('PRAGMA table_info(messages)')}:
-        conn.execute("ALTER TABLE messages ADD COLUMN attachment TEXT DEFAULT '{}'")
-    if 'agent_trace' not in {row['name'] for row in conn.execute('PRAGMA table_info(messages)')}:
-        backup_path = directory / 'memory-before-agent-v2.sqlite3'
-        if legacy and not backup_path.exists():
-            backup = sqlite3.connect(backup_path)
-            try: conn.backup(backup)
-            finally: backup.close()
-        conn.execute("ALTER TABLE messages ADD COLUMN agent_trace TEXT DEFAULT '{}'")
-    conn.execute('PRAGMA journal_mode=WAL')
     try:
+        conn.row_factory = sqlite3.Row
+        # Preserve a consistent backup before first upgrading an existing database.
+        legacy = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='messages'").fetchone()
+        upgraded = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='memory_meta'").fetchone()
+        if legacy and not upgraded:
+            backup_path = directory / 'memory-before-retrieval-v1.sqlite3'
+            if not backup_path.exists():
+                backup = sqlite3.connect(backup_path)
+                try:
+                    conn.backup(backup)
+                finally:
+                    backup.close()
+        if legacy and upgraded and not conn.execute("SELECT 1 FROM memory_meta WHERE key='auto_memory_v1'").fetchone():
+            backup_path=directory/'memory-before-auto-v1.sqlite3'
+            if not backup_path.exists():
+                backup=sqlite3.connect(backup_path)
+                try:conn.backup(backup)
+                finally:backup.close()
+        conn.executescript('''
+          CREATE TABLE IF NOT EXISTS sessions(id INTEGER PRIMARY KEY, title TEXT, created TEXT);
+          CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY, session_id INTEGER,
+            role TEXT, content TEXT, image TEXT, sources TEXT, created TEXT);
+          CREATE TABLE IF NOT EXISTS memories(id INTEGER PRIMARY KEY, content TEXT, created TEXT);
+          CREATE TABLE IF NOT EXISTS preferences(key TEXT PRIMARY KEY,value TEXT);
+        ''')
+        if 'archived' not in {row['name'] for row in conn.execute('PRAGMA table_info(sessions)')}:
+            conn.execute('ALTER TABLE sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0')
+        if 'attachment' not in {row['name'] for row in conn.execute('PRAGMA table_info(messages)')}:
+            conn.execute("ALTER TABLE messages ADD COLUMN attachment TEXT DEFAULT '{}'")
+        if 'agent_trace' not in {row['name'] for row in conn.execute('PRAGMA table_info(messages)')}:
+            backup_path = directory / 'memory-before-agent-v2.sqlite3'
+            if legacy and not backup_path.exists():
+                backup = sqlite3.connect(backup_path)
+                try: conn.backup(backup)
+                finally: backup.close()
+            conn.execute("ALTER TABLE messages ADD COLUMN agent_trace TEXT DEFAULT '{}'")
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id,id)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_sessions_archived_id ON sessions(archived,id)')
+        conn.execute('PRAGMA journal_mode=WAL')
         memory_engine.setup(conn)
         with conn:
             yield conn
@@ -465,7 +467,7 @@ def chat(session_id, question, image, mode, online, document=None, on_event=None
             effective_question=current_city+' '+effective_question
             weather_request['city']=current_city
         else:
-            clarification = '本轮尚未获取到当前位置，请重试定位后查询；不会沿用之前保存的城市。'
+            clarification = websearch.WEATHER_CLARIFICATION
     elif kind=='search' and current_city and re.search(r'当地|本地|附近|我这里|我这边|当前位置|所在城市|周边|这附近',question):
         effective_question=current_city+' '+effective_question
     direct_temperature = bool(weather_request and current_city and not clarification and
