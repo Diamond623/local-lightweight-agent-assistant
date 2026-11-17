@@ -29,6 +29,15 @@ class StatePersistenceTests(unittest.TestCase):
             (local / 'memory.sqlite3').write_bytes(b'local history')
             self.assertEqual(data_paths.data_root(new, isolated), local)
 
+    def test_broken_data_link_does_not_create_empty_history(self):
+        with tempfile.TemporaryDirectory() as temp:
+            home = Path(temp)
+            root = home / 'Aurora'
+            root.mkdir()
+            (root / 'data').symlink_to(home / 'Desktop/Aurora Memory')
+            with self.assertRaisesRegex(RuntimeError, '数据目录链接失效'):
+                data_paths.data_root(root, home)
+
     def test_account_and_history_survive_restart_with_account_isolation(self):
         with tempfile.TemporaryDirectory() as temp, patch.object(app, 'DATA', Path(temp)):
             context = auth.CURRENT.set(None)
