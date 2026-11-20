@@ -39,3 +39,9 @@ python3 package_macos.py --zip-only
 ## 代码使用与版权
 
 项目代码采用 [MIT 许可证](LICENSE)。使用或再发布前，请另行核对图片、图标、模型及第三方素材的授权；MIT 许可证只适用于有权由本项目授权的内容。
+
+## 稀疏模型：Qwen3.5 35B-A3B
+
+24GB Apple Silicon Mac 可选用 Q3_K_M 量化版。运行 `Download-Sparse-Model.command` 下载并校验约 16.8GB 权重；中断后可再次运行续传。完成后重启 Aurora，在模型菜单选择“稀疏模式”。该模式仅处理文字，使用 4096 上下文。权重保存在本机 `models/`，不会上传到 GitHub。
+
+来源：[Unsloth 的 Qwen3.5 35B-A3B GGUF](https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF)。
