@@ -43,9 +43,9 @@ DATA = data_paths.data_root(ROOT)
 TOKEN = secrets.token_urlsafe(32)
 MODEL = Path.home() / '.ollama/models/blobs/sha256-a3de86cd1c132c822487ededd47a324c50491393e6565cd14bafa40d0b8e686f'
 LLAMA = '/opt/homebrew/bin/llama-server'
-PORTS = {'text': 8080, 'vision': 8081, 'gemma': 8082, 'qwen35': 8083, 'qwen27b': 8084}
+PORTS = {'text': 8080, 'vision': 8081, 'gemma': 8082, 'qwen35': 8083, 'qwen27b': 8084, 'moe': 8085}
 VISION_MODES = {'vision','gemma','qwen35'}
-ACTIVE_MODES = ('qwen35', 'gemma', 'qwen27b')  # Legacy ports remain tracked for safe process ownership.
+ACTIVE_MODES = ('qwen35', 'gemma', 'qwen27b', 'moe')  # Legacy ports remain tracked for safe process ownership.
 # Pinned official Ollama qwen3.5:9b-q4_K_M layers; never follow a mutable latest tag.
 QWEN35_DIR = Path.home() / '.ollama/models/blobs'
 QWEN35_FILES = (
@@ -55,6 +55,8 @@ QWEN35_FILES = (
 QWEN27B_MODEL = Path.home() / '.ollama/models/blobs/sha256-40fac4050e940397dbf13087afd50f4734a11805bf9d65ef8ddd7483470e6199'
 QWEN27B_SIZE = 14252845984
 GEMMA_DIR = ROOT / 'models' / 'gemma4-12b'
+MOE_MODEL = ROOT / 'models' / 'qwen3.5-35b-a3b' / 'Qwen3.5-35B-A3B-Q3_K_M.gguf'
+MOE_SIZE = 16803691104
 PROCESSES = {}
 PROCESS_LOCK = threading.Lock()
 CHAT_LOCK = threading.Lock()
@@ -169,6 +171,16 @@ def qwen27b_available():
         return False
 
 
+def moe_available():
+    try:
+        if MOE_MODEL.stat().st_size != MOE_SIZE:
+            return False
+        with MOE_MODEL.open('rb') as handle:
+            return handle.read(4) == b'GGUF'
+    except OSError:
+        return False
+
+
 def port_in_use(mode):
     try:
         with socket.create_connection(('127.0.0.1', PORTS[mode]), timeout=.2):
@@ -220,6 +232,8 @@ def model_info(mode):
             return None
         if mode == 'qwen35' and item['id'] != 'qwen3.5-9b-q4_K_M':
             return None
+        if mode == 'moe' and item['id'] != 'aurora-qwen35-moe':
+            return None
         return item['id']
     except Exception:
         return None
@@ -255,6 +269,13 @@ def start_model(mode):
                      '-b', '256', '-ub', '128', '-fa', 'on',
                      '--reasoning-format', 'deepseek', '--reasoning-budget', '1024',
                      '--chat-template-kwargs', '{"enable_thinking":true}']
+        elif mode == 'moe':
+            if not moe_available():
+                raise RuntimeError('稀疏模型尚未下载完成；原有模型仍可使用。')
+            args[args.index('-c') + 1] = '4096'
+            args += ['-m', str(MOE_MODEL), '--alias', 'aurora-qwen35-moe',
+                     '-b', '256', '-ub', '128', '-fa', 'on',
+                     '--chat-template-kwargs', '{"enable_thinking":false}']
         elif mode == 'qwen35':
             if not qwen35_available():
                 raise RuntimeError('Qwen3.5 9B 尚未安装或文件不完整。请先运行 ollama pull qwen3.5:9b-q4_K_M；原有模型仍可使用。')
@@ -425,8 +446,8 @@ def chat(session_id, question, image, mode, online, document=None, on_event=None
             return _save_local_observation(db, session_id, question, answer, 'system',
                                            '本轮只读取所询问的本机信息，未联网搜索。', trace)
     all_images = ([image] if image else []) + document_images
-    input_budget = (5500 if mode == 'qwen27b' else 5500 if mode in ('text','qwen35') else 9500) - 2200 * len(all_images)
-    input_budget = max(1000 if mode == 'qwen27b' else 2500, input_budget)
+    input_budget = (3000 if mode == 'moe' else 5500 if mode == 'qwen27b' else 5500 if mode in ('text','qwen35') else 9500) - 2200 * len(all_images)
+    input_budget = max(1000 if mode in ('qwen27b','moe') else 2500, input_budget)
     progress('正在读取对话与相关记忆…')
     remember_text = conversation.remember_command(question) if not document and not image else None
     model = model_info(mode)
@@ -651,7 +672,7 @@ def chat(session_id, question, image, mode, online, document=None, on_event=None
     elif clarification:
         response = {'choices': [{'message': {'content': clarification}, 'finish_reason': 'stop'}]}
     else:
-        payload = {'model': model, 'messages': messages, 'max_tokens': 3072 if mode == 'qwen27b' else 1800, 'temperature': 0.2 if searched else 0.6,
+        payload = {'model': model, 'messages': messages, 'max_tokens': 1024 if mode == 'moe' else 3072 if mode == 'qwen27b' else 1800, 'temperature': 0.2 if searched else 0.6,
                    'stream': False, 'chat_template_kwargs': {'enable_thinking': mode == 'qwen27b'}}
         url = f'http://127.0.0.1:{PORTS[mode]}/v1/chat/completions'
         response = generation.completion(url, payload, on_event, cancelled) if on_event else request_json(url, payload, timeout=240)
@@ -840,8 +861,9 @@ class Handler(BaseHTTPRequestHandler):
                 auto_modes=[]
                 if qwen35_available():auto_modes.append('qwen35')
                 if qwen27b_available():auto_modes.append('qwen27b')
+                if moe_available():auto_modes.append('moe')
                 if (GEMMA_DIR/'gemma-4-12b-it-Q5_K_M.gguf').is_file() and (GEMMA_DIR/'mmproj-F16.gguf').is_file():auto_modes.append('gemma')
-                return self.reply({'build':APP_BUILD,'auto_modes':auto_modes,'models':{'qwen35':{'label':'快速模式 · Qwen3.5 9B','port':8083,'vision':True},'gemma':{'label':'均衡模式 · Gemma 4 12B','port':8082,'vision':True},'qwen27b':{'label':'深度思考 · Qwen3.8 27B','port':8084,'alias':'aurora-qwen27b','context':8192,'vision':False,'max_tokens':3072,'thinking':True,'thinking_budget':1024}}})
+                return self.reply({'build':APP_BUILD,'auto_modes':auto_modes,'models':{'qwen35':{'label':'快速模式 · Qwen3.5 9B','port':8083,'vision':True},'gemma':{'label':'均衡模式 · Gemma 4 12B','port':8082,'vision':True},'qwen27b':{'label':'深度思考 · Qwen3.8 27B','port':8084,'alias':'aurora-qwen27b','context':8192,'vision':False,'max_tokens':3072,'thinking':True,'thinking_budget':1024},'moe':{'label':'稀疏模式 · Qwen3.5 35B-A3B','port':8085,'alias':'aurora-qwen35-moe','context':4096,'vision':False,'max_tokens':1024,'thinking':False}}})
             if self.path in ('/api/welcome','/api/welcome-name'):
                 import welcome
                 return self.reply(welcome.save(obj.get('nickname','')) if self.path.endswith('-name') else welcome.read())
@@ -896,6 +918,10 @@ class Handler(BaseHTTPRequestHandler):
                             f.seek(max(0, logfile.stat().st_size - 1600))
                             log = f.read().decode(errors='replace')
                     result[mode] = {'ready': ready, 'running': bool(p and p.poll() is None), 'log': log}
+                    if mode == 'moe':
+                        partial = MOE_MODEL.with_suffix('.gguf.partial')
+                        size = MOE_MODEL.stat().st_size if MOE_MODEL.exists() else partial.stat().st_size if partial.exists() else 0
+                        result[mode]['download'] = min(1, size / MOE_SIZE)
                     if mode == 'gemma':
                         sizes = [('gemma-4-12b-it-Q5_K_M.gguf',8413576000),('mmproj-F16.gguf',175115840)]
                         done = 0
