@@ -109,11 +109,11 @@ class Qwen27BTests(unittest.TestCase):
                 generation.prepare_payload('http://model/v1/chat/completions',{'model':'aurora-qwen27b','messages':[{'role':'user','content':'long current'}],'max_tokens':3072,'chat_template_kwargs':{'enable_thinking':True}},lambda:False)
 
     def test_original_ports_and_menu_remain(self):
-        self.assertEqual(app.PORTS,{'text':8080,'vision':8081,'gemma':8082,'qwen35':8083,'qwen27b':8084})
+        self.assertEqual(app.PORTS,{'text':8080,'vision':8081,'gemma':8082,'qwen35':8083,'qwen27b':8084,'moe':8085})
         html=(app.ROOT/'index.html').read_text()
         for mode in ('qwen35','gemma','qwen27b'):self.assertIn(f'<option value="{mode}"',html)
         for mode in ('text','vision'):self.assertNotIn(f'<option value="{mode}"',html)
         self.assertIn('深度思考 · Qwen3.8 27B',html)
-        self.assertIn("['text','qwen27b'].includes($('mode').value)",html)
+        self.assertIn("['text','qwen27b','moe'].includes($('mode').value)",html)
 
 if __name__=='__main__':unittest.main()
